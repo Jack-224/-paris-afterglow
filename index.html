@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Paris Afterglow — Mobile</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111;touch-action:none;font-family:Arial,sans-serif}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+.hud{position:fixed;top:max(12px,env(safe-area-inset-top));left:0;right:0;z-index:3;display:flex;justify-content:space-around;color:white;font-weight:800;text-shadow:0 2px 4px #000;font-size:14px}
+.controls{position:fixed;left:0;right:0;bottom:max(18px,env(safe-area-inset-bottom));z-index:4;display:flex;justify-content:space-between;padding:0 18px}
+button{font:inherit;-webkit-tap-highlight-color:transparent}
+.key{width:64px;height:64px;border:1px solid #ffffff66;border-radius:18px;background:#111b;color:#fff;font-size:28px;font-weight:800;box-shadow:0 4px 12px #0006}
+.key:active{background:#fff;color:#111}
+.menu{position:fixed;inset:0;z-index:5;display:grid;place-items:center;background:#0009;padding:20px}
+.panel{max-width:330px;text-align:center;background:#eee8dc;color:#151515;padding:24px;border-radius:18px;box-shadow:0 12px 40px #0009}
+.panel h1{margin:0 0 8px;letter-spacing:2px;font-size:28px}.panel p{line-height:1.45;color:#444}
+.start{padding:13px 26px;border:0;border-radius:11px;background:#151515;color:#fff;font-weight:800;font-size:16px}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div class="hud"><span>SCORE <b id="score">0</b></span><span>BEST <b id="best">0</b></span><span id="status">READY</span></div>
+<div class="controls">
+  <div><button class="key" data-k="left">←</button><button class="key" data-k="right">→</button></div>
+  <div><button class="key" data-k="brake">↓</button><button class="key" data-k="boost">↑</button></div>
+</div>
+<div class="menu" id="menu"><div class="panel"><h1 id="title">PARIS AFTERGLOW</h1><p id="msg">Dodge traffic, escape the police and survive as long as possible.</p><button class="start" id="start">START RACE</button></div></div>
+<script>
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+let W=innerWidth,H=innerHeight,dpr=devicePixelRatio||1,run=false,score=0,best=+localStorage.parisAfterglowBest||0,speed=6,road=0,spawn=0,cars=[],keys={};
+const player={x:0,y:0,w:54,h:88};
+document.getElementById('best').textContent=best;
+function resize(){W=innerWidth;H=innerHeight;dpr=devicePixelRatio||1;canvas.width=W*dpr;canvas.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);player.y=H-150; if(!run)player.x=W/2}
+addEventListener('resize',resize);resize();
+function bind(btn,k){
+ const on=e=>{e.preventDefault();keys[k]=1},off=e=>{e.preventDefault();keys[k]=0};
+ btn.addEventListener('pointerdown',on);btn.addEventListener('pointerup',off);btn.addEventListener('pointercancel',off);btn.addEventListener('pointerleave',off);
+}
+document.querySelectorAll('.key').forEach(b=>bind(b,b.dataset.k));
+addEventListener('keydown',e=>{if(e.key==='ArrowLeft')keys.left=1;if(e.key==='ArrowRight')keys.right=1;if(e.key==='ArrowUp')keys.boost=1;if(e.key==='ArrowDown')keys.brake=1});
+addEventListener('keyup',e=>{if(e.key==='ArrowLeft')keys.left=0;if(e.key==='ArrowRight')keys.right=0;if(e.key==='ArrowUp')keys.boost=0;if(e.key==='ArrowDown')keys.brake=0});
+document.getElementById('start').onclick=start;
+function start(){run=true;score=0;speed=6;road=0;spawn=0;cars=[];player.x=W/2;player.y=H-150;document.getElementById('menu').style.display='none';document.getElementById('status').textContent='ESCAPE';requestAnimationFrame(loop)}
+function collide(a,o){return Math.abs(a.x-o.x)<(a.w+o.w)/2&&Math.abs(a.y-o.y)<(a.h+o.h)/2}
+function drawCar(cx,cy,kind,scale=1){
+ ctx.save();ctx.translate(cx,cy);ctx.scale(scale,scale);ctx.strokeStyle='#111';ctx.lineWidth=3;
+ ctx.fillStyle=kind==='police'?'#eee':'#c5c5c5';ctx.beginPath();ctx.moveTo(-25,42);ctx.lineTo(-28,10);ctx.lineTo(-20,-10);ctx.lineTo(-13,-35);ctx.lineTo(13,-37);ctx.lineTo(24,-12);ctx.lineTo(28,10);ctx.lineTo(25,42);ctx.closePath();ctx.fill();ctx.stroke();
+ ctx.fillStyle='#666';ctx.beginPath();ctx.moveTo(-13,-9);ctx.lineTo(-9,-29);ctx.lineTo(10,-31);ctx.lineTo(17,-9);ctx.closePath();ctx.fill();ctx.stroke();
+ ctx.fillStyle='#111';for(const y of [-27,28]){ctx.beginPath();ctx.arc(-28,y,7,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(28,y,7,0,Math.PI*2);ctx.fill()}
+ if(kind==='police'){ctx.fillStyle='#333';ctx.fillRect(-6,-43,12,5)}
+ ctx.restore()
+}
+function draw(){
+ ctx.fillStyle='#eee7d9';ctx.fillRect(0,0,W,H);
+ ctx.fillStyle='#d1c8b8';for(let i=0;i<18;i++){let bx=i*65-(road*.15%65);let bh=70+(i*37)%150;ctx.fillRect(bx,100-bh,48,bh)}
+ ctx.fillStyle='#343434';ctx.fillRect(W*.19,0,W*.62,H);ctx.fillStyle='#222';ctx.fillRect(W*.20,0,7,H);ctx.fillRect(W*.80-7,0,7,H);
+ ctx.strokeStyle='#eee';ctx.lineWidth=4;ctx.setLineDash([28,28]);ctx.lineDashOffset=road;ctx.beginPath();ctx.moveTo(W*.39,0);ctx.lineTo(W*.39,H);ctx.moveTo(W*.61,0);ctx.lineTo(W*.61,H);ctx.stroke();ctx.setLineDash([]);
+ cars.forEach(o=>drawCar(o.x,o.y,o.kind,o.scale));drawCar(player.x,player.y,'player',1);
+}
+function crash(){run=false;best=Math.max(best,score);localStorage.parisAfterglowBest=best;document.getElementById('best').textContent=best;document.getElementById('status').textContent='CRASHED';document.getElementById('title').textContent='CRASHED!';document.getElementById('msg').innerHTML='Score: <b>'+score+'</b><br>Try again and beat your best score.';document.getElementById('start').textContent='RACE AGAIN';document.getElementById('menu').style.display='grid'}
+function loop(){if(!run)return;
+ speed=Math.min(12,Math.max(4,speed+(keys.boost?.06:-.01)));if(keys.brake)speed*=.94;road+=speed;score+=Math.floor(speed/2)+1;document.getElementById('score').textContent=score;
+ player.x+=((keys.right?1:0)-(keys.left?1:0))*(7+speed*.25);player.x=Math.max(W*.23,Math.min(W*.77,player.x));
+ spawn-=speed;if(spawn<=0){spawn=55+Math.random()*65;const lanes=[.28,.5,.72];cars.push({x:W*lanes[Math.floor(Math.random()*3)],y:-80,w:45,h:80,kind:Math.random()<.15?'police':'traffic',scale:.75+Math.random()*.2})}
+ cars.forEach(o=>o.y+=speed*(o.kind==='police'?1.08:.8));cars=cars.filter(o=>o.y<H+110);
+ for(const o of cars)if(collide(player,o)){crash();return}draw();requestAnimationFrame(loop)}
+draw();
+</script>
+</body></html>
